@@ -1,4 +1,5 @@
-// Typed GitHub REST client. No SDK — just `fetch` wrapped with:
+// Typed GitHub REST client.
+// No SDK — just `fetch` wrapped with:
 //  - a request timeout (so a hung connection can't freeze the UI),
 //  - caller-supplied AbortSignal support (so a stale search can be cancelled),
 //  - a single place that maps HTTP failures to our GitHubErrorKind model.
@@ -48,8 +49,8 @@ function rateLimitReset(res: Response): Date | undefined {
 async function toError(res: Response): Promise<GitHubApiError> {
   const remaining = res.headers.get('x-ratelimit-remaining')
 
-  // GitHub signals rate limiting with 403/429 AND remaining === '0'. A 403 with
-  // quota left is a real permission error, so we keep them distinct.
+  // GitHub signals rate limiting with 403/429 AND remaining === '0'.
+  // A 403 with quota left is a real permission error, so we keep them distinct
   if ((res.status === 403 || res.status === 429) && remaining === '0') {
     return new GitHubApiError(
       'rate-limit',
@@ -63,7 +64,7 @@ async function toError(res: Response): Promise<GitHubApiError> {
     const body = (await res.json()) as { message?: string }
     apiMessage = body.message ?? ''
   } catch {
-    // Non-JSON body — ignore, fall back to a generic message.
+    // Non-JSON body: ignore, fall back to a generic message.
   }
 
   const kind: GitHubErrorKind =
@@ -84,7 +85,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     controller.abort()
   }, timeoutMs)
 
-  // Forward an external abort (e.g. a superseded search) into our controller.
+  // Forward an external abort (e.g. a superseded search) into our controller
   if (signal) {
     if (signal.aborted) controller.abort()
     else signal.addEventListener('abort', () => controller.abort(), { once: true })
@@ -100,7 +101,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     if (timedOut) {
       throw new GitHubApiError('timeout', 'The request to GitHub timed out. Please try again.')
     }
-    // External cancellation: re-throw the DOMException so callers can ignore it.
+    // External cancellation: re-throw the DOMException so callers can ignore it
     if (signal?.aborted) throw error
     throw new GitHubApiError(
       'network',

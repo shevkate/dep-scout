@@ -9,14 +9,14 @@ import { daysSince, timeAgo } from '@/lib/format'
 
 export type SignalStatus = 'good' | 'warn' | 'bad' | 'neutral'
 
-// One row in the health panel.
+// One row in the health panel
 export interface HealthSignal {
   label: string // e.g. "Maintenance"
   value: string // e.g. "Last push 2 months ago"
   status: SignalStatus
   hint: string // why this matters for a dependency
 }
-
+// Score level verdict
 export type VerdictLevel = 'healthy' | 'caution' | 'risky'
 
 export interface HealthReport {
@@ -90,7 +90,7 @@ export function buildHealthReport(repo: GitHubRepo, now: Date = new Date()): Hea
   const reds = signals.filter((s) => s.status === 'bad').length
   const score = greens - reds
 
-  // Verdict: a single red drops it straight to "risky"
+  // Verdict: a single red drops it straight to "risky" level
   let level: VerdictLevel
   let headline: string
   if (reds > 0) {

@@ -41,7 +41,7 @@ export function setToken(token: string): void {
       localStorage.removeItem(STORAGE_KEY)
     }
   } catch {
-    // Ignore — running without persistence is fine.
+    // Ignore so running without persistence is fine.
   }
 }
 

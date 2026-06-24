@@ -1,8 +1,8 @@
 // A small, explicit error model. Every failure the UI needs to react to
 // differently gets its own `kind`, so views can switch on it instead of
 // sniffing status codes or matching error strings. This is what lets us turn
-// each edge case (rate limit, 404, bad query, offline) into a distinct,
-// non-breaking UI state.
+// each edge case (like rate limit, 404, bad query, offline) into a distinct,
+// non-breaking UI state
 
 export type GitHubErrorKind =
   | 'rate-limit' // 403/429 with no remaining quota

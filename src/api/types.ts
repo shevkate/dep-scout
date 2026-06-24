@@ -1,5 +1,5 @@
 // Subset of the GitHub REST API shapes we actually consume. We intentionally
-// model only the fields the UI reads — narrower types are easier to keep honest
+// model only the fields the UI reads: narrower types are easier to keep honest
 // under TypeScript strict mode than mirroring GitHub's full payload.
 
 export interface GitHubOwner {
@@ -17,7 +17,7 @@ export interface GitHubLicense {
 /**
  * A repository as returned by both `/search/repositories` (items) and
  * `/repos/{owner}/{repo}`. Fields that only exist on the detail endpoint, or
- * that GitHub may omit/null, are marked optional/nullable on purpose — handling
+ * that GitHub may omit/null, are marked optional/nullable on purpose because handling
  * those gaps is the whole point of this app.
  */
 export interface GitHubRepo {
