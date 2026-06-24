@@ -35,3 +35,36 @@ export class GitHubApiError extends Error {
 export function isGitHubApiError(error: unknown): error is GitHubApiError {
   return error instanceof GitHubApiError
 }
+
+/**
+ * Turn any caught error into a friendly, user-facing message. One place decides
+ * how each `kind` reads, so both screens stay consistent. The switch is
+ * exhaustive over GitHubErrorKind, so adding a new kind forces a new case here.
+ */
+export function describeError(error: unknown): string {
+  if (!isGitHubApiError(error)) {
+    return 'Something went wrong. Please try again.'
+  }
+
+  switch (error.kind) {
+    case 'rate-limit': {
+      const resetsAt = error.rateLimitReset
+        ? ` Resets at ${error.rateLimitReset.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}.`
+        : ''
+      return `GitHub's rate limit is reached.${resetsAt} Add a personal access token to raise it.`
+    }
+    case 'not-found':
+      return 'Not found — double-check the name.'
+    case 'invalid-query':
+      return 'That search query is not valid. Try different keywords.'
+    case 'network':
+      return 'Could not reach GitHub. Check your connection and try again.'
+    case 'timeout':
+      return 'The request to GitHub timed out. Please try again.'
+    case 'http':
+      return error.message || 'GitHub returned an unexpected error.'
+  }
+}

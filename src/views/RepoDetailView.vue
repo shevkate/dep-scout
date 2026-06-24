@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { getRepository } from '@/api/github'
-import { isGitHubApiError } from '@/api/errors'
+import { describeError, isGitHubApiError } from '@/api/errors'
 import { buildHealthReport, type HealthReport, type SignalStatus, type VerdictLevel } from '@/lib/health'
 
 const props = defineProps<{ owner: string; repo: string }>()
@@ -10,6 +10,7 @@ const report = ref<HealthReport | null>(null)
 const repoUrl = ref('')
 const loading = ref(true)
 const error = ref('')
+const notFound = ref(false) // 404 gets its own friendly empty state, not a red alert
 
 // Map our domain statuses to Vuetify colour names. Typing the values as the
 // exact union v-alert expects means no cast is needed in the template.
@@ -33,7 +34,8 @@ onMounted(async () => {
     repoUrl.value = data.html_url
     report.value = buildHealthReport(data)
   } catch (e) {
-    error.value = isGitHubApiError(e) ? e.message : 'Something went wrong.'
+    notFound.value = isGitHubApiError(e) && e.kind === 'not-found'
+    error.value = describeError(e)
   } finally {
     loading.value = false
   }
@@ -60,6 +62,17 @@ onMounted(async () => {
     <div v-if="loading" class="text-center py-8">
       <v-progress-circular indeterminate color="primary" />
     </div>
+
+    <v-empty-state
+      v-else-if="notFound"
+      icon="mdi-magnify-close"
+      :title="`${owner}/${repo} not found`"
+      text="This repository does not exist, or it may be private."
+    >
+      <template #actions>
+        <v-btn color="primary" to="/">Back to search</v-btn>
+      </template>
+    </v-empty-state>
 
     <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
 

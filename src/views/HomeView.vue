@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { searchRepositories } from '@/api/github'
-import { isGitHubApiError } from '@/api/errors'
+import { describeError } from '@/api/errors'
 import type { GitHubRepo, SortField } from '@/api/types'
 import { buildHealthReport, type VerdictLevel } from '@/lib/health'
 
@@ -13,6 +13,8 @@ const sort = ref<SortField>('best-match')
 const results = ref<GitHubRepo[]>([])
 const loading = ref(false)
 const error = ref('')
+const searched = ref(false) // becomes true after the first search completes
+const lastQuery = ref('') // the term actually searched, for the empty state
 
 const sortOptions: { value: SortField; title: string }[] = [
   { value: 'best-match', title: 'Best match' },
@@ -41,11 +43,13 @@ async function onSearch() {
   try {
     const res = await searchRepositories({ q, sort: sort.value, perPage: 20 })
     results.value = res.items
+    lastQuery.value = q
   } catch (e) {
-    error.value = isGitHubApiError(e) ? e.message : 'Something went wrong.'
+    error.value = describeError(e)
     results.value = []
   } finally {
     loading.value = false
+    searched.value = true
   }
 }
 
@@ -85,7 +89,11 @@ function openRepo(repo: GitHubRepo) {
 
     <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ error }}</v-alert>
 
-    <v-list v-if="scored.length" lines="two">
+    <div v-else-if="loading" class="text-center py-8">
+      <v-progress-circular indeterminate color="primary" />
+    </div>
+
+    <v-list v-else-if="scored.length" lines="two">
       <v-list-item
         v-for="{ repo, report } in scored"
         :key="repo.id"
@@ -105,5 +113,19 @@ function openRepo(repo: GitHubRepo) {
         </template>
       </v-list-item>
     </v-list>
+
+    <v-empty-state
+      v-else-if="searched"
+      icon="mdi-magnify-remove-outline"
+      :title="`Nothing found for “${lastQuery}”`"
+      text="Try different keywords or check the spelling."
+    />
+
+    <v-empty-state
+      v-else
+      icon="mdi-magnify"
+      title="Search for a repository"
+      text="Type a library or project name to see whether it is safe to depend on."
+    />
   </div>
 </template>
