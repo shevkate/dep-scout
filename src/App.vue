@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterView, useRouter } from 'vue-router'
+import ErrorBoundary from '@/components/ErrorBoundary.vue'
 
 const router = useRouter()
 </script>
@@ -25,7 +26,9 @@ const router = useRouter()
 
     <v-main>
       <v-container class="app-container py-6">
-        <RouterView />
+        <ErrorBoundary>
+          <RouterView />
+        </ErrorBoundary>
       </v-container>
     </v-main>
   </v-app>

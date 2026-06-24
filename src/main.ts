@@ -9,6 +9,10 @@ import vuetify from './plugins/vuetify'
 
 const app = createApp(App)
 
+app.config.errorHandler = (err, _instance, info) => {
+  console.error('[global] Unhandled error:', err, info)
+}
+
 app.use(router)
 app.use(vuetify)
 
