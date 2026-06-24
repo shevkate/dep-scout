@@ -1,0 +1,9 @@
+// Minimal global tweaks on top of Vuetify's reset.
+html {
+  scroll-behavior: smooth;
+}
+
+.app-container {
+  max-width: 960px;
+  margin-inline: auto;
+}
