@@ -16,9 +16,11 @@
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",
+    "pinia": "^3.0.4",
     "vue": "^3.5.38",
     "vue-router": "^5.1.0",
-    "vuetify": "^3.12.8"
+    "vuetify": "^3.12.8",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.4",
