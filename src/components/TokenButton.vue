@@ -13,13 +13,15 @@ function openDialog() {
 
 function save() {
   setToken(input.value)
-  saved.value = input.value.trim().length > 0
+  // Reflect the real auth state (which also covers a build-time env token),
+  // not just whether this field had text.
+  saved.value = hasToken()
   open.value = false
 }
 
 function remove() {
   clearToken()
-  saved.value = false
+  saved.value = hasToken()
   input.value = ''
   open.value = false
 }
