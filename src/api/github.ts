@@ -37,7 +37,13 @@ function buildHeaders(): HeadersInit {
   return headers
 }
 
-function rateLimitReset(res: Response): Date | undefined {
+function rateLimitReset(res: Response, retryAfter: string | null): Date | undefined {
+  // Secondary limits give Retry-After (seconds from now); primary limits give an
+  // absolute X-RateLimit-Reset (unix seconds). Prefer Retry-After when present.
+  if (retryAfter) {
+    const seconds = Number(retryAfter)
+    if (Number.isFinite(seconds)) return new Date(Date.now() + seconds * 1000)
+  }
   const reset = res.headers.get('x-ratelimit-reset')
   if (!reset) return undefined
   const seconds = Number(reset)
@@ -47,14 +53,17 @@ function rateLimitReset(res: Response): Date | undefined {
 /** Map a non-OK Response to a typed error, reading the body for a message. */
 async function toError(res: Response): Promise<GitHubApiError> {
   const remaining = res.headers.get('x-ratelimit-remaining')
+  const retryAfter = res.headers.get('retry-after')
 
-  // GitHub signals rate limiting with 403/429 AND remaining === '0'.
-  // A 403 with quota left is a real permission error, so we keep them distinct
-  if ((res.status === 403 || res.status === 429) && remaining === '0') {
+  // Two flavours of rate limit, both 403/429: the PRIMARY limit zeroes
+  // X-RateLimit-Remaining; the SECONDARY (abuse) limit sends Retry-After and
+  // often no remaining===0. A plain 403 with neither is a real permission error,
+  // so it falls through to the generic mapping below.
+  if ((res.status === 403 || res.status === 429) && (remaining === '0' || retryAfter !== null)) {
     return new GitHubApiError(
       'rate-limit',
       'GitHub API rate limit exceeded. Add a token or wait for the limit to reset.',
-      { status: res.status, rateLimitReset: rateLimitReset(res) },
+      { status: res.status, rateLimitReset: rateLimitReset(res, retryAfter) },
     )
   }
 
@@ -101,11 +110,13 @@ async function request<S extends z.ZodTypeAny>(
       signal: controller.signal,
     })
   } catch (error) {
+    // Caller cancellation wins over our timeout: if the external signal aborted,
+    // re-throw the DOMException so the caller can ignore it. Only then is a fired
+    // timeout a real timeout; anything else is a network failure.
+    if (signal?.aborted) throw error
     if (timedOut) {
       throw new GitHubApiError('timeout', 'The request to GitHub timed out. Please try again.')
     }
-    // External cancellation: re-throw the DOMException so callers can ignore it
-    if (signal?.aborted) throw error
     throw new GitHubApiError(
       'network',
       'Could not reach GitHub. Check your connection and try again.',

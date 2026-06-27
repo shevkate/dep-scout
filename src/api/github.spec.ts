@@ -51,6 +51,20 @@ describe('github api client', () => {
     await expect(searchRepositories({ q: 'x' })).rejects.toMatchObject({ kind: 'rate-limit' })
   })
 
+  it('maps a 403 secondary rate limit (Retry-After, no remaining=0) to a rate-limit error', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse({ message: 'secondary rate limit' }, { status: 403, headers: { 'retry-after': '30' } }),
+    )
+    await expect(searchRepositories({ q: 'x' })).rejects.toMatchObject({ kind: 'rate-limit' })
+  })
+
+  it('treats a plain 403 with no rate-limit signals as a generic http error', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse({ message: 'Forbidden' }, { status: 403 }),
+    )
+    await expect(getRepository('a', 'b')).rejects.toMatchObject({ kind: 'http' })
+  })
+
   it('rejects a malformed payload with an invalid-response error', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       jsonResponse({ total_count: 'not-a-number', incomplete_results: false, items: [] }),
