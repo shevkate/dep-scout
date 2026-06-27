@@ -1,24 +1,16 @@
 // Typed GitHub REST client.
-// No SDK — just `fetch` wrapped with:
-//  - a request timeout (so a hung connection can't freeze the UI),
+// !!!No SDK — just `fetch` wrapped with:
+//  - a request timeout (so a hung connection can't freeze the ui),
 //  - caller-supplied AbortSignal support (so a stale search can be cancelled),
-//  - a single place that maps HTTP failures to our GitHubErrorKind model.
+//  - a single place that maps http failures to our GitHubErrorKind model.
 
 import { GitHubApiError, type GitHubErrorKind } from './errors'
 import { getToken } from './token'
-import type {
-  GitHubRepo,
-  LanguagesResponse,
-  SearchParams,
-  SearchRepositoriesResponse,
-  SortField,
-} from './types'
+import type { GitHubRepo, SearchParams, SearchRepositoriesResponse, SortField } from './types'
 
 const BASE_URL = 'https://api.github.com'
 const DEFAULT_TIMEOUT_MS = 10_000
 
-/** GitHub's search endpoint caps out at 1000 results regardless of total_count. */
-export const MAX_SEARCH_RESULTS = 1000
 export const DEFAULT_PER_PAGE = 20
 
 interface RequestOptions {
@@ -27,9 +19,12 @@ interface RequestOptions {
 }
 
 function buildHeaders(): HeadersInit {
+  // Only the CORS-safelisted `Accept` header by default, so an unauthenticated
+  // request stays a "simple" request with no CORS preflight — that keeps it
+  // working behind restrictive proxies that drop OPTIONS. (The API version is
+  // optional; GitHub falls back to its stable default.)
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
   }
   const token = getToken()
   if (token) {
@@ -120,7 +115,6 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
 const SORT_PARAM: Record<Exclude<SortField, 'best-match'>, string> = {
   stars: 'stars',
-  forks: 'forks',
   updated: 'updated',
 }
 
@@ -151,20 +145,7 @@ export async function getRepository(
   repo: string,
   signal?: AbortSignal,
 ): Promise<GitHubRepo> {
-  return request<GitHubRepo>(
-    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
-    { signal },
-  )
-}
-
-/** Language breakdown (bytes per language) for a repository. */
-export async function getLanguages(
-  owner: string,
-  repo: string,
-  signal?: AbortSignal,
-): Promise<LanguagesResponse> {
-  return request<LanguagesResponse>(
-    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/languages`,
-    { signal },
-  )
+  return request<GitHubRepo>(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, {
+    signal,
+  })
 }

@@ -55,10 +55,7 @@ export interface SearchRepositoriesResponse {
   items: GitHubRepo[]
 }
 
-/** `/repos/{owner}/{repo}/languages` → bytes of code per language. */
-export type LanguagesResponse = Record<string, number>
-
-export type SortField = 'best-match' | 'stars' | 'forks' | 'updated'
+export type SortField = 'best-match' | 'stars' | 'updated'
 
 export interface SearchParams {
   q: string
