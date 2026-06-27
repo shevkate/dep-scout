@@ -123,3 +123,28 @@ export function buildHealthReport(repo: GitHubRepo, now: Date = new Date()): Hea
 
   return { level, headline, score, signals }
 }
+
+export interface ScoredRepo {
+  repo: GitHubRepo
+  report: HealthReport
+}
+
+/**
+ * From a set of repos, pick the ones strictly healthier than `currentScore`,
+ * best first. Pure and clock-injectable so the ranking is unit-testable on its
+ * own. The current repo is excluded by id.
+ */
+export function pickAlternatives(
+  items: GitHubRepo[],
+  currentId: number,
+  currentScore: number,
+  now: Date = new Date(),
+  limit = 3,
+): ScoredRepo[] {
+  return items
+    .filter((repo) => repo.id !== currentId)
+    .map((repo) => ({ repo, report: buildHealthReport(repo, now) }))
+    .filter((scored) => scored.report.score > currentScore)
+    .sort((a, b) => b.report.score - a.report.score)
+    .slice(0, limit)
+}

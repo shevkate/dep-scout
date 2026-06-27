@@ -2,7 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import { getRepository } from '@/api/github'
 import { describeError, isGitHubApiError } from '@/api/errors'
-import { buildHealthReport, type HealthReport } from '@/lib/health'
+import { buildHealthReport, pickAlternatives, type HealthReport } from '@/lib/health'
+import type { GitHubRepo } from '@/api/types'
 import { LEVEL_COLOR, LEVEL_ICON, LEVEL_LABEL, STATUS_COLOR, STATUS_ICON } from '@/lib/healthDisplay'
 import { storeToRefs } from 'pinia'
 import { useSearchStore } from '@/stores/search'
@@ -11,6 +12,7 @@ import StarIcon from '@/components/StarIcon.vue'
 const props = defineProps<{ owner: string; repo: string }>()
 
 const report = ref<HealthReport | null>(null)
+const detail = ref<GitHubRepo | null>(null)
 const repoUrl = ref('')
 const currentId = ref<number | null>(null)
 const loading = ref(true)
@@ -24,16 +26,19 @@ const inSearch = computed(
   () => currentId.value !== null && searchItems.value.some((r) => r.id === currentId.value),
 )
 
-// Healthier matches from the same search — scored locally, no extra requests.
-const alternatives = computed(() => {
-  if (!inSearch.value || !report.value) return []
-  const currentScore = report.value.score
-  return searchItems.value
-    .filter((r) => r.id !== currentId.value)
-    .map((repo) => ({ repo, report: buildHealthReport(repo) }))
-    .filter((a) => a.report.score > currentScore)
-    .sort((a, b) => b.report.score - a.report.score)
-    .slice(0, 3)
+// Healthier matches from the same results — scored locally, no extra requests.
+const alternatives = computed(() =>
+  inSearch.value && report.value && currentId.value !== null
+    ? pickAlternatives(searchItems.value, currentId.value, report.value.score)
+    : [],
+)
+
+// The owner-provided homepage often lacks a protocol ("vuejs.org"); make it a
+// safe absolute URL so the link doesn't resolve relative to our own site.
+const homepageUrl = computed(() => {
+  const h = detail.value?.homepage?.trim()
+  if (!h) return ''
+  return /^https?:\/\//i.test(h) ? h : `https://${h}`
 })
 
 // Cancel a previous load when navigating to another repo, so an earlier slow
@@ -49,10 +54,12 @@ async function load() {
   error.value = ''
   notFound.value = false
   report.value = null
+  detail.value = null
   repoUrl.value = ''
   currentId.value = null
   try {
     const data = await getRepository(props.owner, props.repo, signal)
+    detail.value = data
     repoUrl.value = data.html_url
     currentId.value = data.id
     report.value = buildHealthReport(data)
@@ -107,6 +114,23 @@ watch(() => [props.owner, props.repo], load, { immediate: true })
     <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
 
     <template v-else-if="report">
+      <p v-if="detail?.description" class="text-body-1 mb-3">{{ detail.description }}</p>
+
+      <div v-if="detail?.language || homepageUrl" class="d-flex ga-4 align-center mb-5">
+        <v-chip v-if="detail?.language" size="small" variant="tonal" color="primary">
+          {{ detail.language }}
+        </v-chip>
+        <a
+          v-if="homepageUrl"
+          :href="homepageUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-caption d-inline-flex align-center"
+        >
+          <v-icon icon="mdi-web" size="small" class="mr-1" />Homepage
+        </a>
+      </div>
+
       <v-alert :type="LEVEL_COLOR[report.level]" variant="tonal" class="mb-4">
         <strong>{{ report.headline }}</strong>
       </v-alert>
@@ -130,7 +154,7 @@ watch(() => [props.owner, props.repo], load, { immediate: true })
 
       <template v-if="inSearch">
         <div v-if="alternatives.length" class="mt-8">
-          <h2 class="text-subtitle-1 font-weight-bold mb-2">Healthier matches from your search</h2>
+          <h2 class="text-subtitle-1 font-weight-bold mb-2">Healthier matches from these results</h2>
           <v-card variant="outlined">
             <v-list lines="two">
               <v-list-item
@@ -161,7 +185,7 @@ watch(() => [props.owner, props.repo], load, { immediate: true })
         </div>
 
         <v-alert v-else type="success" variant="tonal" class="mt-8">
-          One of the healthiest matches for “{{ searchQuery }}”.
+          One of the healthiest results for “{{ searchQuery }}”.
         </v-alert>
       </template>
     </template>

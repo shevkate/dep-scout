@@ -4,7 +4,11 @@ import { createVuetify } from 'vuetify'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
-vi.mock('@/api/github', () => ({ searchRepositories: vi.fn() }))
+vi.mock('@/api/github', () => ({
+  searchRepositories: vi.fn(),
+  DEFAULT_PER_PAGE: 20,
+  SEARCH_RESULT_CAP: 1000,
+}))
 import { searchRepositories } from '@/api/github'
 import type { GitHubRepo } from '@/api/types'
 import HomeView from './HomeView.vue'
@@ -33,7 +37,7 @@ function makeRepo(id: number, fullName: string): GitHubRepo {
     id,
     name,
     full_name: fullName,
-    owner: { login, avatar_url: '', html_url: '' },
+    owner: { login },
     html_url: '',
     description: 'desc',
     homepage: null,
@@ -41,15 +45,8 @@ function makeRepo(id: number, fullName: string): GitHubRepo {
     license: { key: 'mit', name: 'MIT', spdx_id: 'MIT' },
     topics: [],
     stargazers_count: 1000,
-    watchers_count: 1000,
-    forks_count: 10,
-    open_issues_count: 1,
     archived: false,
     fork: false,
-    disabled: false,
-    default_branch: 'main',
-    created_at: '2020-01-01T00:00:00Z',
-    updated_at: '2026-06-01T00:00:00Z',
     pushed_at: '2026-06-01T00:00:00Z',
   }
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { searchRepositories } from '@/api/github'
+import { searchRepositories, DEFAULT_PER_PAGE, SEARCH_RESULT_CAP } from '@/api/github'
 import { describeError } from '@/api/errors'
 import type { GitHubRepo, SortField } from '@/api/types'
 import { buildHealthReport } from '@/lib/health'
@@ -8,9 +8,8 @@ import { LEVEL_COLOR, LEVEL_ICON, LEVEL_LABEL } from '@/lib/healthDisplay'
 import { useSearchStore } from '@/stores/search'
 import StarIcon from '@/components/StarIcon.vue'
 
-const PER_PAGE = 20
-// GitHub's search API never serves results past the first 1000.
-const GITHUB_SEARCH_CAP = 1000
+// Named so <keep-alive include="HomeView"> can target it.
+defineOptions({ name: 'HomeView' })
 
 const store = useSearchStore()
 
@@ -40,8 +39,21 @@ const scored = computed(() =>
 )
 
 const pageCount = computed(() =>
-  Math.min(Math.ceil(total.value / PER_PAGE), Math.ceil(GITHUB_SEARCH_CAP / PER_PAGE)),
+  Math.min(
+    Math.ceil(total.value / DEFAULT_PER_PAGE),
+    Math.ceil(SEARCH_RESULT_CAP / DEFAULT_PER_PAGE),
+  ),
 )
+
+// GitHub reports the real total but only serves the first 1000, so say so
+// honestly rather than implying you can browse millions.
+const resultSummary = computed(() => {
+  const found = total.value.toLocaleString('en-US')
+  if (total.value > SEARCH_RESULT_CAP) {
+    return `Showing the first ${SEARCH_RESULT_CAP.toLocaleString('en-US')} of ${found} repositories`
+  }
+  return `${found} repositories found`
+})
 
 // Cancel an in-flight request when a newer one starts, so a slow earlier
 // response can't overwrite fresher results.
@@ -61,7 +73,7 @@ async function runSearch(q: string, sortValue: SortField, pageNumber: number) {
       q,
       sort: sortValue,
       page: pageNumber,
-      perPage: PER_PAGE,
+      perPage: DEFAULT_PER_PAGE,
       signal,
     })
     results.value = res.items
@@ -133,9 +145,7 @@ function onPage(next: number) {
 
     <div v-else-if="scored.length">
       <p class="text-body-2 text-medium-emphasis mb-3">
-        {{ total.toLocaleString('en-US') }} repositories found<span v-if="incomplete">
-          — partial results</span
-        >
+        {{ resultSummary }}<span v-if="incomplete"> — partial results</span>
       </p>
 
       <v-list lines="two">

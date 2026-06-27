@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildHealthReport } from './health'
+import { buildHealthReport, pickAlternatives } from './health'
 import type { GitHubRepo } from '@/api/types'
 
 // A fixed "now" makes every age-based assertion deterministic.
@@ -15,7 +15,7 @@ function makeRepo(overrides: Partial<GitHubRepo> = {}): GitHubRepo {
     id: 1,
     name: 'repo',
     full_name: 'owner/repo',
-    owner: { login: 'owner', avatar_url: '', html_url: '' },
+    owner: { login: 'owner' },
     html_url: '',
     description: 'A repo',
     homepage: null,
@@ -23,15 +23,8 @@ function makeRepo(overrides: Partial<GitHubRepo> = {}): GitHubRepo {
     license: { key: 'mit', name: 'MIT License', spdx_id: 'MIT' },
     topics: [],
     stargazers_count: 1000,
-    watchers_count: 1000,
-    forks_count: 100,
-    open_issues_count: 10,
     archived: false,
     fork: false,
-    disabled: false,
-    default_branch: 'main',
-    created_at: daysAgo(800),
-    updated_at: daysAgo(5),
     pushed_at: daysAgo(5),
     ...overrides,
   }
@@ -95,5 +88,28 @@ describe('buildHealthReport', () => {
     const report = buildHealthReport(repo, NOW)
     const maintenance = report.signals.find((s) => s.label === 'Maintenance')
     expect(maintenance?.value).not.toContain('NaN')
+  })
+})
+
+describe('pickAlternatives', () => {
+  const current = makeRepo({ id: 1, pushed_at: daysAgo(400) }) // risky: stale > 1y
+  const currentScore = buildHealthReport(current, NOW).score
+
+  it('returns only repos strictly healthier than the current one, best first', () => {
+    const healthier = makeRepo({ id: 2 }) // fresh + licensed + popular
+    const alsoRisky = makeRepo({ id: 3, license: null }) // blocker → not healthier
+    const lessHealthy = makeRepo({ id: 4, stargazers_count: 3, pushed_at: daysAgo(400) })
+
+    const result = pickAlternatives([current, healthier, alsoRisky, lessHealthy], 1, currentScore, NOW)
+
+    expect(result.map((r) => r.repo.id)).toEqual([2])
+  })
+
+  it('excludes the current repo and respects the limit', () => {
+    const items = [current, makeRepo({ id: 2 }), makeRepo({ id: 3 }), makeRepo({ id: 4 })]
+    const result = pickAlternatives(items, 1, currentScore, NOW, 2)
+
+    expect(result).toHaveLength(2)
+    expect(result.every((r) => r.repo.id !== 1)).toBe(true)
   })
 })

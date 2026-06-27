@@ -14,6 +14,8 @@ const BASE_URL = 'https://api.github.com'
 const DEFAULT_TIMEOUT_MS = 10_000
 
 export const DEFAULT_PER_PAGE = 20
+// GitHub's search API never serves results past the first 1000.
+export const SEARCH_RESULT_CAP = 1000
 
 interface RequestOptions {
   signal?: AbortSignal
@@ -118,7 +120,13 @@ async function request<S extends z.ZodTypeAny>(
 
   // Validate the payload instead of blindly trusting its shape: a malformed
   // response fails loudly here rather than throwing somewhere in a template.
-  const result = schema.safeParse(await res.json())
+  let json: unknown
+  try {
+    json = await res.json()
+  } catch {
+    throw new GitHubApiError('invalid-response', 'GitHub returned a response that could not be read.')
+  }
+  const result = schema.safeParse(json)
   if (!result.success) {
     throw new GitHubApiError('invalid-response', 'GitHub returned data in an unexpected format.')
   }
