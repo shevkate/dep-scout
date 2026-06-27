@@ -29,13 +29,7 @@ const router = useRouter()
     <v-main>
       <v-container class="app-container py-6">
         <ErrorBoundary>
-          <RouterView v-slot="{ Component }">
-            <!-- Keep the search view alive so returning from a repo restores the
-                 query, results and page. Detail/404 are not cached — they reload. -->
-            <keep-alive include="HomeView">
-              <component :is="Component" />
-            </keep-alive>
-          </RouterView>
+          <RouterView />
         </ErrorBoundary>
       </v-container>
     </v-main>

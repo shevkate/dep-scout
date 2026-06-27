@@ -7,6 +7,7 @@ import type { GitHubRepo } from '@/api/types'
 import { LEVEL_COLOR, LEVEL_ICON, LEVEL_LABEL, STATUS_COLOR, STATUS_ICON } from '@/lib/healthDisplay'
 import { storeToRefs } from 'pinia'
 import { useSearchStore } from '@/stores/search'
+import { useAbortableRequest } from '@/composables/useAbortableRequest'
 import StarIcon from '@/components/StarIcon.vue'
 
 const props = defineProps<{ owner: string; repo: string }>()
@@ -15,10 +16,10 @@ const report = ref<HealthReport | null>(null)
 const detail = ref<GitHubRepo | null>(null)
 const repoUrl = ref('')
 const currentId = ref<number | null>(null)
-const loading = ref(true)
 const error = ref('')
 const notFound = ref(false) // 404 gets its own friendly empty state, not a red alert
 
+const { loading, run } = useAbortableRequest()
 const { items: searchItems, query: searchQuery } = storeToRefs(useSearchStore())
 
 // Only suggest matches when this repo actually came from the last search.
@@ -41,35 +42,30 @@ const homepageUrl = computed(() => {
   return /^https?:\/\//i.test(h) ? h : `https://${h}`
 })
 
-// Cancel a previous load when navigating to another repo, so an earlier slow
-// response can't replace the current one.
-let controller: AbortController | null = null
-
 async function load() {
-  controller?.abort()
-  controller = new AbortController()
-  const { signal } = controller
-
-  loading.value = true
   error.value = ''
   notFound.value = false
   report.value = null
   detail.value = null
   repoUrl.value = ''
   currentId.value = null
-  try {
-    const data = await getRepository(props.owner, props.repo, signal)
-    detail.value = data
-    repoUrl.value = data.html_url
-    currentId.value = data.id
-    report.value = buildHealthReport(data)
-  } catch (e) {
-    if (signal.aborted) return // superseded by a newer navigation — ignore
-    notFound.value = isGitHubApiError(e) && e.kind === 'not-found'
-    error.value = describeError(e)
-  } finally {
-    if (!signal.aborted) loading.value = false
+
+  // run() cancels any previous in-flight load, so navigating between repos can't
+  // land a stale response.
+  const result = await run((signal) => getRepository(props.owner, props.repo, signal))
+  if (result.status === 'superseded') return
+
+  if (result.status === 'error') {
+    notFound.value = isGitHubApiError(result.error) && result.error.kind === 'not-found'
+    error.value = describeError(result.error)
+    return
   }
+
+  const data = result.data
+  detail.value = data
+  repoUrl.value = data.html_url
+  currentId.value = data.id
+  report.value = buildHealthReport(data)
 }
 
 // `immediate` runs it on mount; the watch also reruns when the route params

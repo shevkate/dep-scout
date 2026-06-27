@@ -1,31 +1,21 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { searchRepositories, DEFAULT_PER_PAGE, SEARCH_RESULT_CAP } from '@/api/github'
-import { describeError } from '@/api/errors'
-import type { GitHubRepo, SortField } from '@/api/types'
-import { buildHealthReport } from '@/lib/health'
+import { storeToRefs } from 'pinia'
+import { DEFAULT_PER_PAGE, SEARCH_RESULT_CAP } from '@/api/github'
+import type { SortField } from '@/api/types'
+import { buildHealthReport, type ScoredRepo } from '@/lib/health'
 import { LEVEL_COLOR, LEVEL_ICON, LEVEL_LABEL } from '@/lib/healthDisplay'
 import { useSearchStore } from '@/stores/search'
 import StarIcon from '@/components/StarIcon.vue'
 
-// Named so <keep-alive include="HomeView"> can target it.
-defineOptions({ name: 'HomeView' })
-
 const store = useSearchStore()
+const { items, total, incomplete, loading, error, searched } = storeToRefs(store)
+const { query: appliedQuery, sort: appliedSort, page } = storeToRefs(store)
 
-const query = ref('')
-const sort = ref<SortField>('best-match')
-// The term/sort the currently shown results belong to — used for paging so a
-// half-typed query or an unapplied sort can't change the page underfoot.
-const activeQuery = ref('')
-const activeSort = ref<SortField>('best-match')
-const page = ref(1)
-const total = ref(0)
-const results = ref<GitHubRepo[]>([])
-const incomplete = ref(false)
-const loading = ref(false)
-const error = ref('')
-const searched = ref(false)
+// Live form inputs. Hydrated from the applied state so returning to the search
+// screen shows the last query/sort instead of an empty box.
+const queryInput = ref(appliedQuery.value)
+const sortInput = ref<SortField>(appliedSort.value)
 
 const sortOptions: { value: SortField; title: string }[] = [
   { value: 'best-match', title: 'Best match' },
@@ -34,8 +24,8 @@ const sortOptions: { value: SortField; title: string }[] = [
 ]
 
 // A health verdict for every result — computed locally, with NO extra requests.
-const scored = computed(() =>
-  results.value.map((repo) => ({ repo, report: buildHealthReport(repo) })),
+const scored = computed<ScoredRepo[]>(() =>
+  items.value.map((repo) => ({ repo, report: buildHealthReport(repo) })),
 )
 
 const pageCount = computed(() =>
@@ -55,54 +45,12 @@ const resultSummary = computed(() => {
   return `${found} repositories found`
 })
 
-// Cancel an in-flight request when a newer one starts, so a slow earlier
-// response can't overwrite fresher results.
-let controller: AbortController | null = null
-
-async function runSearch(q: string, sortValue: SortField, pageNumber: number) {
-  if (!q) return
-
-  controller?.abort()
-  controller = new AbortController()
-  const { signal } = controller
-
-  loading.value = true
-  error.value = ''
-  try {
-    const res = await searchRepositories({
-      q,
-      sort: sortValue,
-      page: pageNumber,
-      perPage: DEFAULT_PER_PAGE,
-      signal,
-    })
-    results.value = res.items
-    total.value = res.total_count
-    incomplete.value = res.incomplete_results
-    activeQuery.value = q
-    activeSort.value = sortValue
-    page.value = pageNumber
-    // Share the results so the detail page can suggest healthier matches.
-    store.save(res.items, q)
-  } catch (e) {
-    if (signal.aborted) return // superseded by a newer search — ignore
-    error.value = describeError(e)
-    results.value = []
-    total.value = 0
-  } finally {
-    if (!signal.aborted) {
-      loading.value = false
-      searched.value = true
-    }
-  }
-}
-
 function onSearch() {
-  runSearch(query.value.trim(), sort.value, 1)
+  store.search(queryInput.value.trim(), sortInput.value, 1)
 }
 
 function onPage(next: number) {
-  runSearch(activeQuery.value, activeSort.value, next)
+  store.search(appliedQuery.value, appliedSort.value, next)
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 </script>
@@ -115,7 +63,7 @@ function onPage(next: number) {
 
     <div class="d-flex ga-2 mb-4 flex-wrap align-center">
       <v-text-field
-        v-model="query"
+        v-model="queryInput"
         label="Search GitHub repositories"
         prepend-inner-icon="mdi-magnify"
         variant="outlined"
@@ -126,7 +74,7 @@ function onPage(next: number) {
         @keyup.enter="onSearch"
       />
       <v-select
-        v-model="sort"
+        v-model="sortInput"
         :items="sortOptions"
         label="Sort"
         variant="outlined"
@@ -190,7 +138,7 @@ function onPage(next: number) {
     <v-empty-state
       v-else-if="searched"
       icon="mdi-magnify-remove-outline"
-      :title="`Nothing found for “${activeQuery}”`"
+      :title="`Nothing found for “${appliedQuery}”`"
       text="Try different keywords or check the spelling."
     />
 
@@ -205,9 +153,9 @@ function onPage(next: number) {
 
 <style scoped>
 /* Keep page numbers black; the active page gets a solid lime square (no overlay
-   fade) with black text. */
+   fade) with black text. The lime comes from a shared brand token. */
 .dep-pagination :deep(.v-pagination__item--is-active .v-btn) {
-  background-color: #c8f03c;
+  background-color: var(--brand-lime);
   color: #111;
 }
 

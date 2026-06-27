@@ -1,4 +1,10 @@
 // Minimal global tweaks on top of Vuetify's reset.
+:root {
+  // The brand lime, shared by the marker and the active pagination square so the
+  // hex lives in one place. (The Vuetify theme's `primary` mirrors this value.)
+  --brand-lime: #c8f03c;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -38,6 +44,6 @@ html {
   z-index: -1;
   // top pushed down → text shows above the lime; right/bottom overhang unevenly
   inset: 38% -0.2em -0.08em 0;
-  background-color: #c8f03c;
+  background-color: var(--brand-lime);
   transform: rotate(-1.5deg);
 }
