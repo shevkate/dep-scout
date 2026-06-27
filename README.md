@@ -60,8 +60,8 @@ Vue Router · Vitest · Vite.
   10 req/min search limit.
 - The active-page styling reaches into a Vuetify internal class; a major Vuetify
   upgrade could require revisiting it.
-- Tests cover the API client, error mapping, the scoring/ranking logic and the
-  search screen; there's no E2E suite yet.
+- Tests cover the API client, token storage, error mapping, the scoring/ranking
+  logic, the search store and the search screen; there's no E2E suite yet.
 - The bundle ships the full Material Design Icons font — switching to per-icon
   SVG imports is the obvious next size win.
 
