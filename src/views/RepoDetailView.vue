@@ -1,15 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { getRepository } from '@/api/github'
 import { describeError, isGitHubApiError } from '@/api/errors'
-import { buildHealthReport, type HealthReport, type SignalStatus, type VerdictLevel } from '@/lib/health'
+import { buildHealthReport, type HealthReport } from '@/lib/health'
+import { LEVEL_COLOR, LEVEL_ICON, LEVEL_LABEL, STATUS_COLOR, STATUS_ICON } from '@/lib/healthDisplay'
 import { useLastSearch } from '@/composables/useLastSearch'
 import StarIcon from '@/components/StarIcon.vue'
-import type { GitHubRepo } from '@/api/types'
 
 const props = defineProps<{ owner: string; repo: string }>()
-const router = useRouter()
 
 const report = ref<HealthReport | null>(null)
 const repoUrl = ref('')
@@ -19,22 +17,6 @@ const error = ref('')
 const notFound = ref(false) // 404 gets its own friendly empty state, not a red alert
 
 const { items: searchItems, query: searchQuery } = useLastSearch()
-
-// Map our domain statuses to Vuetify colour names. Typing the values as the
-// exact union v-alert expects means no cast is needed in the template.
-type AlertType = 'success' | 'warning' | 'error'
-
-const levelColor: Record<VerdictLevel, AlertType> = {
-  healthy: 'success',
-  caution: 'warning',
-  risky: 'error',
-}
-const statusColor: Record<SignalStatus, string> = {
-  good: 'success',
-  warn: 'warning',
-  bad: 'error',
-  neutral: 'grey',
-}
 
 // Only suggest matches when this repo actually came from the last search.
 const inSearch = computed(
@@ -53,7 +35,15 @@ const alternatives = computed(() => {
     .slice(0, 3)
 })
 
+// Cancel a previous load when navigating to another repo, so an earlier slow
+// response can't replace the current one.
+let controller: AbortController | null = null
+
 async function load() {
+  controller?.abort()
+  controller = new AbortController()
+  const { signal } = controller
+
   loading.value = true
   error.value = ''
   notFound.value = false
@@ -61,25 +51,22 @@ async function load() {
   repoUrl.value = ''
   currentId.value = null
   try {
-    const data = await getRepository(props.owner, props.repo)
+    const data = await getRepository(props.owner, props.repo, signal)
     repoUrl.value = data.html_url
     currentId.value = data.id
     report.value = buildHealthReport(data)
   } catch (e) {
+    if (signal.aborted) return // superseded by a newer navigation — ignore
     notFound.value = isGitHubApiError(e) && e.kind === 'not-found'
     error.value = describeError(e)
   } finally {
-    loading.value = false
+    if (!signal.aborted) loading.value = false
   }
 }
 
 // `immediate` runs it on mount; the watch also reruns when the route params
 // change, so clicking a suggested match reloads the page instead of going stale.
 watch(() => [props.owner, props.repo], load, { immediate: true })
-
-function openRepo(repo: GitHubRepo) {
-  router.push(`/repo/${repo.owner.login}/${repo.name}`)
-}
 </script>
 
 <template>
@@ -92,10 +79,12 @@ function openRepo(repo: GitHubRepo) {
         v-if="repoUrl"
         :href="repoUrl"
         target="_blank"
+        rel="noopener noreferrer"
         variant="text"
         size="small"
         icon="mdi-open-in-new"
         class="ml-2"
+        aria-label="Open on GitHub"
       />
     </div>
 
@@ -117,7 +106,7 @@ function openRepo(repo: GitHubRepo) {
     <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
 
     <template v-else-if="report">
-      <v-alert :type="levelColor[report.level]" variant="tonal" class="mb-4">
+      <v-alert :type="LEVEL_COLOR[report.level]" variant="tonal" class="mb-4">
         <strong>{{ report.headline }}</strong>
       </v-alert>
 
@@ -125,7 +114,12 @@ function openRepo(repo: GitHubRepo) {
         <v-list>
           <v-list-item v-for="s in report.signals" :key="s.label">
             <template #prepend>
-              <v-icon :color="statusColor[s.status]" icon="mdi-circle" size="x-small" class="mr-3" />
+              <v-icon
+                :icon="STATUS_ICON[s.status]"
+                :color="STATUS_COLOR[s.status]"
+                size="small"
+                class="mr-3"
+              />
             </template>
             <v-list-item-title>{{ s.label }}: {{ s.value }}</v-list-item-title>
             <v-list-item-subtitle>{{ s.hint }}</v-list-item-subtitle>
@@ -141,14 +135,15 @@ function openRepo(repo: GitHubRepo) {
               <v-list-item
                 v-for="alt in alternatives"
                 :key="alt.repo.id"
+                :to="`/repo/${alt.repo.owner.login}/${alt.repo.name}`"
                 :title="alt.repo.full_name"
                 :subtitle="alt.repo.description ?? 'No description'"
-                @click="openRepo(alt.repo)"
               >
                 <template #prepend>
                   <v-icon
-                    :color="levelColor[alt.report.level]"
-                    icon="mdi-circle"
+                    :icon="LEVEL_ICON[alt.report.level]"
+                    :color="LEVEL_COLOR[alt.report.level]"
+                    :aria-label="LEVEL_LABEL[alt.report.level]"
                     size="small"
                     class="mr-2"
                   />

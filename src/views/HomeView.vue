@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { searchRepositories } from '@/api/github'
 import { describeError } from '@/api/errors'
 import type { GitHubRepo, SortField } from '@/api/types'
-import { buildHealthReport, type VerdictLevel } from '@/lib/health'
+import { buildHealthReport } from '@/lib/health'
+import { LEVEL_COLOR, LEVEL_ICON, LEVEL_LABEL } from '@/lib/healthDisplay'
 import { useLastSearch } from '@/composables/useLastSearch'
 import StarIcon from '@/components/StarIcon.vue'
 
-const router = useRouter()
 const { save } = useLastSearch()
 
 const query = ref('')
 const sort = ref<SortField>('best-match')
 const results = ref<GitHubRepo[]>([])
+const incomplete = ref(false) // GitHub flagged the result set as partial
 const loading = ref(false)
 const error = ref('')
 const searched = ref(false) // becomes true after the first search completes
@@ -25,41 +25,43 @@ const sortOptions: { value: SortField; title: string }[] = [
   { value: 'updated', title: 'Recently updated' },
 ]
 
-const levelColor: Record<VerdictLevel, string> = {
-  healthy: 'success',
-  caution: 'warning',
-  risky: 'error',
-}
-
 // A health verdict for every result — computed locally, with NO extra requests,
 // because the search payload already carries the fields buildHealthReport reads.
 const scored = computed(() =>
   results.value.map((repo) => ({ repo, report: buildHealthReport(repo) })),
 )
 
+// Cancel an in-flight search when a newer one starts, so a slow earlier response
+// can't overwrite fresher results (the classic search race condition).
+let controller: AbortController | null = null
+
 async function onSearch() {
   const q = query.value.trim()
   if (!q) return
 
+  controller?.abort()
+  controller = new AbortController()
+  const { signal } = controller
+
   loading.value = true
   error.value = ''
   try {
-    const res = await searchRepositories({ q, sort: sort.value, perPage: 20 })
+    const res = await searchRepositories({ q, sort: sort.value, perPage: 20, signal })
     results.value = res.items
+    incomplete.value = res.incomplete_results
     lastQuery.value = q
     // Share the results so the detail page can suggest healthier matches.
     save(res.items, q)
   } catch (e) {
+    if (signal.aborted) return // superseded by a newer search — ignore
     error.value = describeError(e)
     results.value = []
   } finally {
-    loading.value = false
-    searched.value = true
+    if (!signal.aborted) {
+      loading.value = false
+      searched.value = true
+    }
   }
-}
-
-function openRepo(repo: GitHubRepo) {
-  router.push(`/repo/${repo.owner.login}/${repo.name}`)
 }
 </script>
 
@@ -99,27 +101,39 @@ function openRepo(repo: GitHubRepo) {
       <v-progress-circular indeterminate color="primary" />
     </div>
 
-    <v-list v-else-if="scored.length" lines="two">
-      <v-list-item
-        v-for="{ repo, report } in scored"
-        :key="repo.id"
-        :title="repo.full_name"
-        :subtitle="repo.description ?? 'No description'"
-        @click="openRepo(repo)"
-      >
-        <template #prepend>
-          <v-icon :color="levelColor[report.level]" icon="mdi-circle" size="small" class="mr-2">
-            <v-tooltip activator="parent" location="top">{{ report.headline }}</v-tooltip>
-          </v-icon>
-        </template>
-        <template #append>
-          <span class="text-caption text-medium-emphasis d-inline-flex align-center ga-1">
-            <StarIcon />
-            {{ repo.stargazers_count.toLocaleString('en-US') }}
-          </span>
-        </template>
-      </v-list-item>
-    </v-list>
+    <div v-else-if="scored.length">
+      <v-alert v-if="incomplete" type="info" variant="tonal" density="compact" class="mb-3">
+        GitHub returned a partial result set — some matches may be missing.
+      </v-alert>
+
+      <v-list lines="two">
+        <v-list-item
+          v-for="{ repo, report } in scored"
+          :key="repo.id"
+          :to="`/repo/${repo.owner.login}/${repo.name}`"
+          :title="repo.full_name"
+          :subtitle="repo.description ?? 'No description'"
+        >
+          <template #prepend>
+            <v-icon
+              :icon="LEVEL_ICON[report.level]"
+              :color="LEVEL_COLOR[report.level]"
+              :aria-label="LEVEL_LABEL[report.level]"
+              size="small"
+              class="mr-2"
+            >
+              <v-tooltip activator="parent" location="top">{{ report.headline }}</v-tooltip>
+            </v-icon>
+          </template>
+          <template #append>
+            <span class="text-caption text-medium-emphasis d-inline-flex align-center ga-1">
+              <StarIcon />
+              {{ repo.stargazers_count.toLocaleString('en-US') }}
+            </span>
+          </template>
+        </v-list-item>
+      </v-list>
+    </div>
 
     <v-empty-state
       v-else-if="searched"
