@@ -10,6 +10,7 @@ export type GitHubErrorKind =
   | 'invalid-query' // 422 — e.g. empty or malformed search query
   | 'network' // fetch threw — offline, DNS, CORS
   | 'timeout' // request aborted by our own timeout
+  | 'invalid-response' // 200 OK but the payload failed schema validation
   | 'http' // any other non-OK response
 
 export class GitHubApiError extends Error {
@@ -64,6 +65,8 @@ export function describeError(error: unknown): string {
       return 'Could not reach GitHub. Check your connection and try again.'
     case 'timeout':
       return 'The request to GitHub timed out. Please try again.'
+    case 'invalid-response':
+      return 'GitHub returned data in an unexpected format. Please try again.'
     case 'http':
       return error.message || 'GitHub returned an unexpected error.'
   }

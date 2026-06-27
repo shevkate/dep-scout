@@ -6,7 +6,9 @@
 
 import { GitHubApiError, type GitHubErrorKind } from './errors'
 import { getToken } from './token'
+import { repoSchema, searchResponseSchema } from './schemas'
 import type { GitHubRepo, SearchParams, SearchRepositoriesResponse, SortField } from './types'
+import type { z } from 'zod'
 
 const BASE_URL = 'https://api.github.com'
 const DEFAULT_TIMEOUT_MS = 10_000
@@ -70,7 +72,11 @@ async function toError(res: Response): Promise<GitHubApiError> {
   })
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+async function request<S extends z.ZodTypeAny>(
+  path: string,
+  schema: S,
+  options: RequestOptions = {},
+): Promise<z.infer<S>> {
   const { signal, timeoutMs = DEFAULT_TIMEOUT_MS } = options
 
   const controller = new AbortController()
@@ -110,7 +116,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     throw await toError(res)
   }
 
-  return (await res.json()) as T
+  // Validate the payload instead of blindly trusting its shape: a malformed
+  // response fails loudly here rather than throwing somewhere in a template.
+  const result = schema.safeParse(await res.json())
+  if (!result.success) {
+    throw new GitHubApiError('invalid-response', 'GitHub returned data in an unexpected format.')
+  }
+  return result.data
 }
 
 const SORT_PARAM: Record<Exclude<SortField, 'best-match'>, string> = {
@@ -136,7 +148,7 @@ export async function searchRepositories(
     query.set('sort', SORT_PARAM[sort])
   }
 
-  return request<SearchRepositoriesResponse>(`/search/repositories?${query.toString()}`, { signal })
+  return request(`/search/repositories?${query.toString()}`, searchResponseSchema, { signal })
 }
 
 /** Fetch a single repository's full detail. */
@@ -145,7 +157,7 @@ export async function getRepository(
   repo: string,
   signal?: AbortSignal,
 ): Promise<GitHubRepo> {
-  return request<GitHubRepo>(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, {
+  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, repoSchema, {
     signal,
   })
 }

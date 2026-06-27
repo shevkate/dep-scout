@@ -51,6 +51,13 @@ describe('github api client', () => {
     await expect(searchRepositories({ q: 'x' })).rejects.toMatchObject({ kind: 'rate-limit' })
   })
 
+  it('rejects a malformed payload with an invalid-response error', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse({ total_count: 'not-a-number', incomplete_results: false, items: [] }),
+    )
+    await expect(searchRepositories({ q: 'vue' })).rejects.toMatchObject({ kind: 'invalid-response' })
+  })
+
   it('maps a thrown fetch (offline) to a network error', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
     await expect(getRepository('a', 'b')).rejects.toMatchObject({ kind: 'network' })
