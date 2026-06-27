@@ -52,9 +52,16 @@ Vue Router · Vitest · Vite.
 
 ## Known limitations / next steps
 
-- “Healthier matches” compares against the current page of results only, and the
-  shared state isn't persisted, so it resets on a hard reload or a deep link.
-- Unit + one component test cover the core logic; no E2E yet.
+- “Healthier matches” are drawn from the page of results you're viewing (so the
+  heading says *“from these results”*), and the shared state isn't persisted —
+  it's empty on a hard reload or a deep link into a repo.
+- Paging triggers a full-screen spinner rather than a subtle in-list loading
+  state, and there's no debounce, so clicking through pages quickly can hit the
+  10 req/min search limit.
+- The active-page styling reaches into a Vuetify internal class; a major Vuetify
+  upgrade could require revisiting it.
+- Tests cover the API client, error mapping, the scoring/ranking logic and the
+  search screen; there's no E2E suite yet.
 - The bundle ships the full Material Design Icons font — switching to per-icon
   SVG imports is the obvious next size win.
 
