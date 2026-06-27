@@ -5,7 +5,7 @@ safe to depend on — is it maintained, licensed, popular, archived? Every resul
 carries a health verdict (🟢 / 🟡 / 🔴) so you can scan a whole list at a glance
 instead of opening twenty tabs.
 
-**Live demo:** _add after deploy_
+**Live demo:** https://dep-scout-liard.vercel.app
 
 ## Why
 
