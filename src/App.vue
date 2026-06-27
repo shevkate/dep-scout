@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterView, useRouter } from 'vue-router'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
+import TokenButton from '@/components/TokenButton.vue'
 
 const router = useRouter()
 </script>
@@ -18,9 +19,10 @@ const router = useRouter()
           <span class="marker">dep-scout</span>
         </v-app-bar-title>
         <v-spacer />
-        <span class="text-caption text-medium-emphasis d-none d-sm-inline">
+        <span class="text-caption text-medium-emphasis d-none d-md-inline mr-4">
           Should you depend on this repo?
         </span>
+        <TokenButton />
       </v-container>
     </v-app-bar>
 
