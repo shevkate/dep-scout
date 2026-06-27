@@ -1,54 +1,66 @@
 # dep-scout
 
-This template should help get you started developing with Vue 3 in Vite.
+Search GitHub repositories and get a quick, honest read on whether a project is
+safe to depend on — is it maintained, licensed, popular, archived? Every result
+carries a health verdict (🟢 / 🟡 / 🔴) so you can scan a whole list at a glance
+instead of opening twenty tabs.
 
-## Recommended IDE Setup
+**Live demo:** _add after deploy_
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+## Why
 
-## Recommended Browser Setup
+Before adding a dependency I tend to eyeball the same few things on GitHub: when
+it was last pushed, whether it has a license, how many stars, whether it's
+archived. dep-scout pulls those signals from the GitHub REST API and turns them
+into one verdict. Open a repo and it also suggests **healthier matches from the
+same search**.
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+## Run it
 
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+Requires **Node 22** (see `.nvmrc`).
 
 ```sh
 npm install
+npm run dev         # http://localhost:5173
+npm run test:unit   # unit + component tests
+npm run build       # type-check + production build
 ```
 
-### Compile and Hot-Reload for Development
+No token is needed — the app uses GitHub's public API. Unauthenticated **search
+is capped at 10 requests/min**; you can paste a read-only personal access token
+via **“Add token”** in the header to raise it to 30/min. The token is stored only
+in your browser (localStorage) and sent only to `api.github.com`.
 
-```sh
-npm run dev
-```
+## A few decisions
 
-### Type-Check, Compile and Minify for Production
+- **Honest verdict.** The score claims only what the data supports — “no red
+  flags,” never “secure” (the API gives no security data). A missing license or
+  an archived repo is a hard blocker regardless of stars.
+- **No wasted requests.** A search response already carries the fields the health
+  check needs, so the per-result verdicts and the “healthier matches” suggestions
+  are computed locally — zero extra API calls.
+- **Validated at the edges.** Responses are parsed with zod, so a malformed
+  payload fails loudly with a clear message instead of breaking a template.
+- **Every state is handled.** Rate limits (with reset time), 404s, empty and
+  partial results, timeouts and offline each have their own UI — plus an error
+  boundary as a last resort.
 
-```sh
-npm run build
-```
+## Tech
 
-### Run Unit Tests with [Vitest](https://vitest.dev/)
+Vue 3 (`<script setup>`) · TypeScript (strict) · Vuetify + Sass · Pinia · zod ·
+Vue Router · Vitest · Vite.
 
-```sh
-npm run test:unit
-```
+## Known limitations / next steps
 
-### Lint with [ESLint](https://eslint.org/)
+- “Healthier matches” compares against the current page of results only, and the
+  shared state isn't persisted, so it resets on a hard reload or a deep link.
+- Unit + one component test cover the core logic; no E2E yet.
+- The bundle ships the full Material Design Icons font — switching to per-icon
+  SVG imports is the obvious next size win.
 
-```sh
-npm run lint
-```
+## AI assistance
+
+I used AI (Claude) as a pair-programming partner throughout — talking through the
+design, writing and refactoring code, and running an adversarial self-review that
+surfaced several edge cases and the prod-grade items above. I drove the product
+and UX decisions and reviewed the code to understand every part of it.
