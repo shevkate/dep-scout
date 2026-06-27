@@ -5,8 +5,11 @@ import { searchRepositories } from '@/api/github'
 import { describeError } from '@/api/errors'
 import type { GitHubRepo, SortField } from '@/api/types'
 import { buildHealthReport, type VerdictLevel } from '@/lib/health'
+import { useLastSearch } from '@/composables/useLastSearch'
+import StarIcon from '@/components/StarIcon.vue'
 
 const router = useRouter()
+const { save } = useLastSearch()
 
 const query = ref('')
 const sort = ref<SortField>('best-match')
@@ -44,6 +47,8 @@ async function onSearch() {
     const res = await searchRepositories({ q, sort: sort.value, perPage: 20 })
     results.value = res.items
     lastQuery.value = q
+    // Share the results so the detail page can suggest healthier matches.
+    save(res.items, q)
   } catch (e) {
     error.value = describeError(e)
     results.value = []
@@ -108,8 +113,9 @@ function openRepo(repo: GitHubRepo) {
           </v-icon>
         </template>
         <template #append>
-          <span class="text-caption text-medium-emphasis">
-            ⭐ {{ repo.stargazers_count.toLocaleString('en-US') }}
+          <span class="text-caption text-medium-emphasis d-inline-flex align-center ga-1">
+            <StarIcon />
+            {{ repo.stargazers_count.toLocaleString('en-US') }}
           </span>
         </template>
       </v-list-item>

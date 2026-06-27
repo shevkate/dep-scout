@@ -1,16 +1,24 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { getRepository } from '@/api/github'
 import { describeError, isGitHubApiError } from '@/api/errors'
 import { buildHealthReport, type HealthReport, type SignalStatus, type VerdictLevel } from '@/lib/health'
+import { useLastSearch } from '@/composables/useLastSearch'
+import StarIcon from '@/components/StarIcon.vue'
+import type { GitHubRepo } from '@/api/types'
 
 const props = defineProps<{ owner: string; repo: string }>()
+const router = useRouter()
 
 const report = ref<HealthReport | null>(null)
 const repoUrl = ref('')
+const currentId = ref<number | null>(null)
 const loading = ref(true)
 const error = ref('')
 const notFound = ref(false) // 404 gets its own friendly empty state, not a red alert
+
+const { items: searchItems, query: searchQuery } = useLastSearch()
 
 // Map our domain statuses to Vuetify colour names. Typing the values as the
 // exact union v-alert expects means no cast is needed in the template.
@@ -28,10 +36,34 @@ const statusColor: Record<SignalStatus, string> = {
   neutral: 'grey',
 }
 
-onMounted(async () => {
+// Only suggest matches when this repo actually came from the last search.
+const inSearch = computed(
+  () => currentId.value !== null && searchItems.value.some((r) => r.id === currentId.value),
+)
+
+// Healthier matches from the same search — scored locally, no extra requests.
+const alternatives = computed(() => {
+  if (!inSearch.value || !report.value) return []
+  const currentScore = report.value.score
+  return searchItems.value
+    .filter((r) => r.id !== currentId.value)
+    .map((repo) => ({ repo, report: buildHealthReport(repo) }))
+    .filter((a) => a.report.score > currentScore)
+    .sort((a, b) => b.report.score - a.report.score)
+    .slice(0, 3)
+})
+
+async function load() {
+  loading.value = true
+  error.value = ''
+  notFound.value = false
+  report.value = null
+  repoUrl.value = ''
+  currentId.value = null
   try {
     const data = await getRepository(props.owner, props.repo)
     repoUrl.value = data.html_url
+    currentId.value = data.id
     report.value = buildHealthReport(data)
   } catch (e) {
     notFound.value = isGitHubApiError(e) && e.kind === 'not-found'
@@ -39,7 +71,15 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+
+// `immediate` runs it on mount; the watch also reruns when the route params
+// change, so clicking a suggested match reloads the page instead of going stale.
+watch(() => [props.owner, props.repo], load, { immediate: true })
+
+function openRepo(repo: GitHubRepo) {
+  router.push(`/repo/${repo.owner.login}/${repo.name}`)
+}
 </script>
 
 <template>
@@ -92,6 +132,42 @@ onMounted(async () => {
           </v-list-item>
         </v-list>
       </v-card>
+
+      <template v-if="inSearch">
+        <div v-if="alternatives.length" class="mt-8">
+          <h2 class="text-subtitle-1 font-weight-bold mb-2">Healthier matches from your search</h2>
+          <v-card variant="outlined">
+            <v-list lines="two">
+              <v-list-item
+                v-for="alt in alternatives"
+                :key="alt.repo.id"
+                :title="alt.repo.full_name"
+                :subtitle="alt.repo.description ?? 'No description'"
+                @click="openRepo(alt.repo)"
+              >
+                <template #prepend>
+                  <v-icon
+                    :color="levelColor[alt.report.level]"
+                    icon="mdi-circle"
+                    size="small"
+                    class="mr-2"
+                  />
+                </template>
+                <template #append>
+                  <span class="text-caption text-medium-emphasis d-inline-flex align-center ga-1">
+                    <StarIcon />
+                    {{ alt.repo.stargazers_count.toLocaleString('en-US') }}
+                  </span>
+                </template>
+              </v-list-item>
+            </v-list>
+          </v-card>
+        </div>
+
+        <v-alert v-else type="success" variant="tonal" class="mt-8">
+          One of the healthiest matches for “{{ searchQuery }}”.
+        </v-alert>
+      </template>
     </template>
   </div>
 </template>
