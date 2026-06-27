@@ -1,8 +1,10 @@
 import { createVuetify } from 'vuetify'
 import { aliases, mdi } from 'vuetify/iconsets/mdi'
 
-// Single Vuetify instance for the app. Theme tuned for a calm, dashboard-like
-// feel since the app is about reading signals, not flashy interaction.
+// Theme built from the author's hand-drawn LinkedIn banner: a white canvas, a
+// lime marker accent, near-black ink, and a hand-drawn red. Lime is the *brand*
+// colour (buttons, highlights); the health verdicts keep their own semantic
+// green / amber / red so status stays readable.
 export default createVuetify({
   icons: {
     defaultSet: 'mdi',
@@ -14,15 +16,21 @@ export default createVuetify({
     themes: {
       light: {
         colors: {
-          primary: '#2563eb',
+          background: '#ffffff',
           surface: '#ffffff',
-          background: '#f6f7f9',
+          primary: '#c8f03c', // lime marker
+          'on-primary': '#111111', // black text on lime
+          ink: '#111111',
+          success: '#2fa84f', // healthy (variant A: distinct from lime)
+          warning: '#e8a317', // caution
+          error: '#ff2d2d', // risky — the banner's red
         },
       },
     },
   },
   defaults: {
-    VCard: { rounded: 'lg' },
-    VBtn: { rounded: 'md' },
+    VCard: { rounded: 'lg', flat: true, border: true },
+    VBtn: { rounded: 'md', flat: true },
+    VAppBar: { flat: true },
   },
 })

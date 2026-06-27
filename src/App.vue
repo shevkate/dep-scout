@@ -14,8 +14,8 @@ const router = useRouter()
           style="cursor: pointer"
           @click="router.push('/')"
         >
-          <v-icon icon="mdi-shield-search" class="mr-2" color="primary" />
-          dep-scout
+          <v-icon icon="mdi-shield-search" class="mr-2" color="ink" />
+          <span class="marker">dep-scout</span>
         </v-app-bar-title>
         <v-spacer />
         <span class="text-caption text-medium-emphasis d-none d-sm-inline">

@@ -3,7 +3,41 @@ html {
   scroll-behavior: smooth;
 }
 
+// Space Grotesk everywhere — the geometric, slightly playful grotesque from the
+// banner. Vuetify's typography classes (text-h4, text-body-1, …) set their own
+// font-family, which would override the inherited one — so we force those to
+// inherit too.
+.v-application {
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  [class^='text-'],
+  [class*=' text-'] {
+    font-family: inherit;
+  }
+}
+
 .app-container {
   max-width: 960px;
   margin-inline: auto;
+}
+
+// The signature move from the banner: a lime highlighter swipe — deliberately
+// offset and slightly tilted, not a tidy symmetric box. The lime sits low and
+// overhangs unevenly so the text pokes above it, the way it's drawn on the
+// banner. Single-line text only.
+.marker {
+  position: relative;
+  display: inline-block;
+  padding: 0 0.15em;
+  z-index: 0;
+}
+
+.marker::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  // top pushed down → text shows above the lime; right/bottom overhang unevenly
+  inset: 38% -0.2em -0.08em 0;
+  background-color: #c8f03c;
+  transform: rotate(-1.5deg);
 }

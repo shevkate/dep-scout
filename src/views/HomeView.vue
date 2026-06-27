@@ -60,7 +60,9 @@ function openRepo(repo: GitHubRepo) {
 
 <template>
   <div>
-    <h1 class="text-h5 mb-4">Find a repository</h1>
+    <h1 class="text-h4 font-weight-bold mb-6">
+      <span class="marker">Find a repository</span>
+    </h1>
 
     <div class="d-flex ga-2 mb-4 flex-wrap align-center">
       <v-text-field
@@ -82,7 +84,6 @@ function openRepo(repo: GitHubRepo) {
         density="comfortable"
         hide-details
         style="max-width: 200px"
-        @update:model-value="onSearch"
       />
       <v-btn color="primary" size="large" :loading="loading" @click="onSearch">Search</v-btn>
     </div>
