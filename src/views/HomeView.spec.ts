@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createVuetify } from 'vuetify'
+import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 vi.mock('@/api/github', () => ({ searchRepositories: vi.fn() }))
@@ -62,7 +63,7 @@ function mountView() {
       { path: '/repo/:owner/:repo', component: { template: '<div />' } },
     ],
   })
-  return mount(HomeView, { global: { plugins: [vuetify, router] } })
+  return mount(HomeView, { global: { plugins: [vuetify, router, createPinia()] } })
 }
 
 describe('HomeView', () => {

@@ -5,19 +5,28 @@ import { describeError } from '@/api/errors'
 import type { GitHubRepo, SortField } from '@/api/types'
 import { buildHealthReport } from '@/lib/health'
 import { LEVEL_COLOR, LEVEL_ICON, LEVEL_LABEL } from '@/lib/healthDisplay'
-import { useLastSearch } from '@/composables/useLastSearch'
+import { useSearchStore } from '@/stores/search'
 import StarIcon from '@/components/StarIcon.vue'
 
-const { save } = useLastSearch()
+const PER_PAGE = 20
+// GitHub's search API never serves results past the first 1000.
+const GITHUB_SEARCH_CAP = 1000
+
+const store = useSearchStore()
 
 const query = ref('')
 const sort = ref<SortField>('best-match')
+// The term/sort the currently shown results belong to — used for paging so a
+// half-typed query or an unapplied sort can't change the page underfoot.
+const activeQuery = ref('')
+const activeSort = ref<SortField>('best-match')
+const page = ref(1)
+const total = ref(0)
 const results = ref<GitHubRepo[]>([])
-const incomplete = ref(false) // GitHub flagged the result set as partial
+const incomplete = ref(false)
 const loading = ref(false)
 const error = ref('')
-const searched = ref(false) // becomes true after the first search completes
-const lastQuery = ref('') // the term actually searched, for the empty state
+const searched = ref(false)
 
 const sortOptions: { value: SortField; title: string }[] = [
   { value: 'best-match', title: 'Best match' },
@@ -25,18 +34,20 @@ const sortOptions: { value: SortField; title: string }[] = [
   { value: 'updated', title: 'Recently updated' },
 ]
 
-// A health verdict for every result — computed locally, with NO extra requests,
-// because the search payload already carries the fields buildHealthReport reads.
+// A health verdict for every result — computed locally, with NO extra requests.
 const scored = computed(() =>
   results.value.map((repo) => ({ repo, report: buildHealthReport(repo) })),
 )
 
-// Cancel an in-flight search when a newer one starts, so a slow earlier response
-// can't overwrite fresher results (the classic search race condition).
+const pageCount = computed(() =>
+  Math.min(Math.ceil(total.value / PER_PAGE), Math.ceil(GITHUB_SEARCH_CAP / PER_PAGE)),
+)
+
+// Cancel an in-flight request when a newer one starts, so a slow earlier
+// response can't overwrite fresher results.
 let controller: AbortController | null = null
 
-async function onSearch() {
-  const q = query.value.trim()
+async function runSearch(q: string, sortValue: SortField, pageNumber: number) {
   if (!q) return
 
   controller?.abort()
@@ -46,22 +57,41 @@ async function onSearch() {
   loading.value = true
   error.value = ''
   try {
-    const res = await searchRepositories({ q, sort: sort.value, perPage: 20, signal })
+    const res = await searchRepositories({
+      q,
+      sort: sortValue,
+      page: pageNumber,
+      perPage: PER_PAGE,
+      signal,
+    })
     results.value = res.items
+    total.value = res.total_count
     incomplete.value = res.incomplete_results
-    lastQuery.value = q
+    activeQuery.value = q
+    activeSort.value = sortValue
+    page.value = pageNumber
     // Share the results so the detail page can suggest healthier matches.
-    save(res.items, q)
+    store.save(res.items, q)
   } catch (e) {
     if (signal.aborted) return // superseded by a newer search — ignore
     error.value = describeError(e)
     results.value = []
+    total.value = 0
   } finally {
     if (!signal.aborted) {
       loading.value = false
       searched.value = true
     }
   }
+}
+
+function onSearch() {
+  runSearch(query.value.trim(), sort.value, 1)
+}
+
+function onPage(next: number) {
+  runSearch(activeQuery.value, activeSort.value, next)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 </script>
 
@@ -102,9 +132,11 @@ async function onSearch() {
     </div>
 
     <div v-else-if="scored.length">
-      <v-alert v-if="incomplete" type="info" variant="tonal" density="compact" class="mb-3">
-        GitHub returned a partial result set — some matches may be missing.
-      </v-alert>
+      <p class="text-body-2 text-medium-emphasis mb-3">
+        {{ total.toLocaleString('en-US') }} repositories found<span v-if="incomplete">
+          — partial results</span
+        >
+      </p>
 
       <v-list lines="two">
         <v-list-item
@@ -133,12 +165,22 @@ async function onSearch() {
           </template>
         </v-list-item>
       </v-list>
+
+      <v-pagination
+        v-if="pageCount > 1"
+        :model-value="page"
+        :length="pageCount"
+        :total-visible="7"
+        density="comfortable"
+        class="mt-4 dep-pagination"
+        @update:model-value="onPage"
+      />
     </div>
 
     <v-empty-state
       v-else-if="searched"
       icon="mdi-magnify-remove-outline"
-      :title="`Nothing found for “${lastQuery}”`"
+      :title="`Nothing found for “${activeQuery}”`"
       text="Try different keywords or check the spelling."
     />
 
@@ -150,3 +192,16 @@ async function onSearch() {
     />
   </div>
 </template>
+
+<style scoped>
+/* Keep page numbers black; the active page gets a solid lime square (no overlay
+   fade) with black text. */
+.dep-pagination :deep(.v-pagination__item--is-active .v-btn) {
+  background-color: #c8f03c;
+  color: #111;
+}
+
+.dep-pagination :deep(.v-pagination__item--is-active .v-btn__overlay) {
+  opacity: 0;
+}
+</style>

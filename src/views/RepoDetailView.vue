@@ -4,7 +4,8 @@ import { getRepository } from '@/api/github'
 import { describeError, isGitHubApiError } from '@/api/errors'
 import { buildHealthReport, type HealthReport } from '@/lib/health'
 import { LEVEL_COLOR, LEVEL_ICON, LEVEL_LABEL, STATUS_COLOR, STATUS_ICON } from '@/lib/healthDisplay'
-import { useLastSearch } from '@/composables/useLastSearch'
+import { storeToRefs } from 'pinia'
+import { useSearchStore } from '@/stores/search'
 import StarIcon from '@/components/StarIcon.vue'
 
 const props = defineProps<{ owner: string; repo: string }>()
@@ -16,7 +17,7 @@ const loading = ref(true)
 const error = ref('')
 const notFound = ref(false) // 404 gets its own friendly empty state, not a red alert
 
-const { items: searchItems, query: searchQuery } = useLastSearch()
+const { items: searchItems, query: searchQuery } = storeToRefs(useSearchStore())
 
 // Only suggest matches when this repo actually came from the last search.
 const inSearch = computed(
