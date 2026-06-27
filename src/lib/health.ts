@@ -41,12 +41,22 @@ export function buildHealthReport(repo: GitHubRepo, now: Date = new Date()): Hea
     })
   } else {
     const days = daysSince(repo.pushed_at, now)
-    signals.push({
-      label: 'Maintenance',
-      value: `Last push ${timeAgo(days)}`,
-      status: days <= 90 ? 'good' : days <= 365 ? 'warn' : 'bad',
-      hint: 'How recently the code was updated.',
-    })
+    if (!Number.isFinite(days)) {
+      // Guard against a missing/invalid pushed_at so the UI never shows "NaN".
+      signals.push({
+        label: 'Maintenance',
+        value: 'Unknown',
+        status: 'neutral',
+        hint: 'No push date is available for this repository.',
+      })
+    } else {
+      signals.push({
+        label: 'Maintenance',
+        value: `Last push ${timeAgo(days)}`,
+        status: days <= 90 ? 'good' : days <= 365 ? 'warn' : 'bad',
+        hint: 'How recently the code was updated.',
+      })
+    }
   }
 
   // 2. License: are we legally allowed to use it?
@@ -70,9 +80,14 @@ export function buildHealthReport(repo: GitHubRepo, now: Date = new Date()): Hea
   const stars = repo.stargazers_count
   signals.push({
     label: 'Popularity',
+    // Very low adoption is a genuine caution (few eyes on bugs), so it must be
+    // able to keep a repo out of the "healthy" verdict — not a free pass.
     value: `${stars.toLocaleString('en-US')} stars`,
-    status: stars >= 500 ? 'good' : stars >= 50 ? 'warn' : 'neutral',
-    hint: 'More users means bugs surface and get fixed faster.',
+    status: stars >= 500 ? 'good' : stars >= 50 ? 'neutral' : 'warn',
+    hint:
+      stars < 50
+        ? 'Very few users — bugs and security issues may surface late.'
+        : 'More users means bugs surface and get fixed faster.',
   })
 
   // 4. Fork: is it just a copy of another project?
@@ -101,7 +116,9 @@ export function buildHealthReport(repo: GitHubRepo, now: Date = new Date()): Hea
     headline = 'Usable, but check the caveats'
   } else {
     level = 'healthy'
-    headline = 'Looks safe to depend on'
+    // Deliberately not "safe": we only check a handful of signals and have no
+    // security data, so we claim only what we measured.
+    headline = 'No red flags in these signals'
   }
 
   return { level, headline, score, signals }

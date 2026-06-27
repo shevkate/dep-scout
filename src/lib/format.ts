@@ -8,6 +8,7 @@ export function daysSince(isoDate: string, now: Date): number {
 }
 
 export function timeAgo(days: number): string {
+  if (!Number.isFinite(days)) return 'unknown'
   if (days <= 0) return 'today'
   if (days < 30) return `${days} days ago`
   if (days < 365) return `${Math.round(days / 30)} months ago`

@@ -82,4 +82,18 @@ describe('buildHealthReport', () => {
     )
     expect(healthy.score).toBeGreaterThan(archived.score)
   })
+
+  it('does not call a barely-starred repo healthy', () => {
+    const report = buildHealthReport(makeRepo({ stargazers_count: 3 }), NOW)
+    expect(report.level).not.toBe('healthy')
+  })
+
+  it('handles a missing push date without producing NaN', () => {
+    const repo = makeRepo()
+    // Simulate a malformed payload where pushed_at is absent.
+    ;(repo as { pushed_at: unknown }).pushed_at = undefined
+    const report = buildHealthReport(repo, NOW)
+    const maintenance = report.signals.find((s) => s.label === 'Maintenance')
+    expect(maintenance?.value).not.toContain('NaN')
+  })
 })
